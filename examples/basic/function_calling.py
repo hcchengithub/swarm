@@ -13,7 +13,10 @@ agent = Agent(
     functions=[get_weather],
 )
 
-messages = [{"role": "user", "content": "What's the weather in NYC?"}]
+messages = [{"role": "user", "content": "Hi!"}]
+response = client.run(agent=agent, messages=messages)
+print(response.messages[-1]["content"])
 
+messages = [{"role": "user", "content": "What's the weather in NYC?"}]
 response = client.run(agent=agent, messages=messages)
 print(response.messages[-1]["content"])

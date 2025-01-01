@@ -8,6 +8,14 @@ agent = Agent(
 )
 
 messages = [{"role": "user", "content": "Hi!"}]
-response = client.run(agent=agent, messages=messages)
+
+# prompt = pyperclip.paste() # 自責分的 prompt 
+# messages = [{"role": "user", "content": prompt}]
+
+response = client.run(
+    agent=agent, 
+    messages=messages,
+    model_override="gpt-4o-mini"    
+)
 
 print(response.messages[-1]["content"])
