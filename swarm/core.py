@@ -24,10 +24,13 @@ __CTX_VARS_NAME__ = "context_variables"
 
 
 class Swarm:
-    def __init__(self, client=None):
+    def __init__(self, client=None, extra_headers = None, get_access_token=None): # HC 16:03 2025/01/02
         if not client:
             client = OpenAI()
         self.client = client
+        self.get_access_token = get_access_token # columbus.get_access_token() method  # HC 16:03 2025/01/02
+        self.extra_headers = extra_headers  # HC 16:03 2025/01/02
+        self.__version__ = "0.1.882"
 
     def get_chat_completion(
         self,
@@ -55,12 +58,14 @@ class Swarm:
             if __CTX_VARS_NAME__ in params["required"]:
                 params["required"].remove(__CTX_VARS_NAME__)
 
+        self.extra_headers['Authorization'] = 'Bearer ' + self.get_access_token()  # HC 16:03 2025/01/02
         create_params = {
             "model": model_override or agent.model,
             "messages": messages,
             "tools": tools or None,
             "tool_choice": agent.tool_choice,
             "stream": stream,
+            "extra_headers" : self.extra_headers  # HC 16:03 2025/01/02
         }
 
         if tools:
