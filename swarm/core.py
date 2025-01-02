@@ -30,7 +30,7 @@ class Swarm:
         self.client = client
         self.get_access_token = get_access_token # columbus.get_access_token() method  # HC 16:03 2025/01/02
         self.extra_headers = extra_headers  # HC 16:03 2025/01/02
-        self.__version__ = "0.1.882"
+        self.__version__ = "0.1.883"
 
     def get_chat_completion(
         self,
@@ -58,7 +58,8 @@ class Swarm:
             if __CTX_VARS_NAME__ in params["required"]:
                 params["required"].remove(__CTX_VARS_NAME__)
 
-        self.extra_headers['Authorization'] = 'Bearer ' + self.get_access_token()  # HC 16:03 2025/01/02
+        if self.get_access_token: 
+            self.extra_headers['Authorization'] = 'Bearer ' + self.get_access_token()  # HC 16:03 2025/01/02
         create_params = {
             "model": model_override or agent.model,
             "messages": messages,
