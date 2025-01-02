@@ -12,7 +12,7 @@ def account_details(context_variables: dict):
     user_id = context_variables.get("user_id", None)
     name = context_variables.get("name", None)
     print(f"Account Details: {name} {user_id}")
-    return {"status":"Failed", **context_variables}
+    return {"status":"Failed", **context_variables} # HC 2:33 AM 1/2/2025 I modify for experiment
 
 agent = Agent(
     name="Agent",
