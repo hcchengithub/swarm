@@ -30,7 +30,7 @@ class Swarm:
         self.client = client
         self.get_access_token = get_access_token # columbus.get_access_token() method  # HC 16:03 2025/01/02
         self.extra_headers = extra_headers  # HC 16:03 2025/01/02
-        self.__version__ = "0.1.883"
+        self.__version__ = "0.1.884"
 
     def get_chat_completion(
         self,
