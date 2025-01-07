@@ -30,7 +30,7 @@ class Swarm:
         self.client = client
         self.get_access_token = get_access_token # columbus.get_access_token() method  # HC 16:03 2025/01/02
         self.extra_headers = extra_headers  # HC 16:03 2025/01/02
-        self.__version__ = "0.1.884"
+        self.__version__ = "0.1.101"
 
     def get_chat_completion(
         self,
@@ -154,7 +154,13 @@ class Swarm:
     ):
         active_agent = agent
         context_variables = copy.deepcopy(context_variables)
-        history = copy.deepcopy(messages)
+        
+        # history = copy.deepcopy(messages)
+        # Ensure context_variables includes history so as to support get_history() function
+        if "history" not in context_variables:
+            context_variables["history"] = copy.deepcopy(messages)
+        history = context_variables["history"]
+        
         init_len = len(messages)
 
         while len(history) - init_len < max_turns:
@@ -257,7 +263,13 @@ class Swarm:
             )
         active_agent = agent
         context_variables = copy.deepcopy(context_variables)
-        history = copy.deepcopy(messages)
+        
+        # history = copy.deepcopy(messages)
+        # Ensure context_variables includes history so as to support get_history() function
+        if "history" not in context_variables:
+            context_variables["history"] = copy.deepcopy(messages)
+        history = context_variables["history"]
+        
         init_len = len(messages)
 
         while len(history) - init_len < max_turns and active_agent:
