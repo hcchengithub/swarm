@@ -1,12 +1,12 @@
 # Standard library imports
-import copy
+import copy, openai
 import json
 from collections import defaultdict
 from typing import List, Callable, Union
 
 # Package/library imports
 from openai import OpenAI
-
+from pydantic import BaseModel # Add response_format - HC 2:52 PM 1/10/2025
 
 # Local imports
 from .util import function_to_json, debug_print, merge_chunk
@@ -30,7 +30,18 @@ class Swarm:
         self.client = client
         self.get_access_token = get_access_token # columbus.get_access_token() method  # HC 16:03 2025/01/02
         self.extra_headers = extra_headers  # HC 16:03 2025/01/02
-        self.__version__ = "0.1.101"
+        self.__version__ = "0.1.102"
+
+
+        # Release Note
+        # ============
+        # * Always use "pip uninstall swarm" and then "pip install . " to update new version.
+        #
+        # 0.1.101 1. support Azure OpenAI and client.__version__
+        #         1. REPL to accept 'q', 'quit', and 'exit'
+        #         1. add history to context_variables
+        # 0.1.102 support OpenAI structured outputs through response_format
+        #
 
     def get_chat_completion(
         self,
@@ -40,6 +51,7 @@ class Swarm:
         model_override: str,
         stream: bool,
         debug: bool,
+        response_format: BaseModel = None,  # Add response_format - HC 2:52 PM 1/10/2025
     ) -> ChatCompletionMessage:
         context_variables = defaultdict(str, context_variables)
         instructions = (
@@ -50,7 +62,23 @@ class Swarm:
         messages = [{"role": "system", "content": instructions}] + history
         debug_print(debug, "Getting chat completion for...:", messages)
 
-        tools = [function_to_json(f) for f in agent.functions]
+        # HC 8:37 PM 1/10/2025 改寫 for response_format 為 functions 都加上 "strict": True 以及 "additionalProperties": False
+        # tools = [function_to_json(f) for f in agent.functions]
+        tools = [
+            {
+                **function_to_json(f),
+                "function": {
+                    **function_to_json(f)["function"],
+                    "strict": True,
+                    "parameters": {
+                        **function_to_json(f)["function"]["parameters"],
+                        "additionalProperties": False,  # Add this field
+                    },
+                },
+            }
+            for f in agent.functions
+        ]
+
         # hide context_variables from model
         for tool in tools:
             params = tool["function"]["parameters"]
@@ -58,8 +86,10 @@ class Swarm:
             if __CTX_VARS_NAME__ in params["required"]:
                 params["required"].remove(__CTX_VARS_NAME__)
 
-        if self.get_access_token: 
-            self.extra_headers['Authorization'] = 'Bearer ' + self.get_access_token()  # HC 16:03 2025/01/02
+        # HC 16:03 2025/01/02 所以用 Swarm client to run() 不再需要擔心 access_token expiration
+        if self.get_access_token:
+            self.extra_headers['Authorization'] = 'Bearer ' + self.get_access_token()
+
         create_params = {
             "model": model_override or agent.model,
             "messages": messages,
@@ -72,7 +102,21 @@ class Swarm:
         if tools:
             create_params["parallel_tool_calls"] = agent.parallel_tool_calls
 
-        return self.client.chat.completions.create(**create_params)
+        # return self.client.chat.completions.create(**create_params)
+        # Use the OpenAI client to parse if response_format is provided  - HC 3:33 PM 1/10/2025
+        if response_format:
+            # 檢查 openai 如果尚未修正 is_given() 就發出警告
+            if openai._utils._utils.is_given(None) or openai._utils._utils.is_given([]):
+                assert False "OpenAI function is_given() in trouble that blocks response_format structured outputs from Swarm. See my workaround at https://www.notion.so/Activity-Log-14ae3eb16f9380928722d2a020aed0af?pvs=4#177e3eb16f9380ec9f99dd9764a60a7b"
+            create_params.pop("stream") # TypeError: Completions.parse() got an unexpected keyword argument 'stream' - HC 4:28 PM 1/10/2025
+            completion = self.client.beta.chat.completions.parse(
+                **create_params, response_format=response_format
+            )
+        else:
+            completion = self.client.chat.completions.create(**create_params)
+
+        return completion
+
 
     def handle_function_result(self, result, debug) -> Result:
         match result:
@@ -154,13 +198,13 @@ class Swarm:
     ):
         active_agent = agent
         context_variables = copy.deepcopy(context_variables)
-        
+
         # history = copy.deepcopy(messages)
         # Ensure context_variables includes history so as to support get_history() function
         if "history" not in context_variables:
             context_variables["history"] = copy.deepcopy(messages)
         history = context_variables["history"]
-        
+
         init_len = len(messages)
 
         while len(history) - init_len < max_turns:
@@ -250,6 +294,7 @@ class Swarm:
         debug: bool = False,
         max_turns: int = float("inf"),
         execute_tools: bool = True,
+        response_format: BaseModel = None,  # Add response_format - HC 3:39 PM 1/10/2025
     ) -> Response:
         if stream:
             return self.run_and_stream(
@@ -263,13 +308,13 @@ class Swarm:
             )
         active_agent = agent
         context_variables = copy.deepcopy(context_variables)
-        
+
         # history = copy.deepcopy(messages)
         # Ensure context_variables includes history so as to support get_history() function
         if "history" not in context_variables:
             context_variables["history"] = copy.deepcopy(messages)
         history = context_variables["history"]
-        
+
         init_len = len(messages)
 
         while len(history) - init_len < max_turns and active_agent:
@@ -282,6 +327,7 @@ class Swarm:
                 model_override=model_override,
                 stream=stream,
                 debug=debug,
+                response_format=response_format,  # Pass response_format - HC 3:42 PM 1/10/2025
             )
             message = completion.choices[0].message
             debug_print(debug, "Received completion:", message)
