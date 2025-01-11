@@ -3,9 +3,9 @@ from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
     Function,
 )
-from typing import List, Callable, Union, Optional
 
 # Third-party imports
+from typing import List, Callable, Union, Optional, Type
 from pydantic import BaseModel
 
 AgentFunction = Callable[[], Union[str, "Agent", dict]]
@@ -18,7 +18,7 @@ class Agent(BaseModel):
     functions: List[AgentFunction] = []
     tool_choice: str = None
     parallel_tool_calls: bool = True
-
+    response_format: Type[BaseModel] = None # Add response_format - HC 10:25 AM 1/11/2025
 
 class Response(BaseModel):
     messages: List = []

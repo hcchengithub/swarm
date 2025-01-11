@@ -30,7 +30,7 @@ class Swarm:
         self.client = client
         self.get_access_token = get_access_token # columbus.get_access_token() method  # HC 16:03 2025/01/02
         self.extra_headers = extra_headers  # HC 16:03 2025/01/02
-        self.__version__ = "0.1.102"
+        self.__version__ = "0.1.103"
 
 
         # Release Note
@@ -40,7 +40,8 @@ class Swarm:
         # 0.1.101 1. support Azure OpenAI and client.__version__
         #         1. REPL to accept 'q', 'quit', and 'exit'
         #         1. add history to context_variables
-        # 0.1.102 support OpenAI structured outputs through response_format
+        # 0.1.102 support Swarm structured outputs through response_format at client.run()
+        # 0.1.103 support response_format at Agent definition
         #
 
     def get_chat_completion(
@@ -64,6 +65,8 @@ class Swarm:
 
         # HC 8:37 PM 1/10/2025 改寫 for response_format 為 functions 都加上 "strict": True 以及 "additionalProperties": False
         # tools = [function_to_json(f) for f in agent.functions]
+        # 可能用 tool = openai.pydantic_function_tool(<Pydantic model>, name="function name", description="tell AI what this func is")
+        # 則更 formal 而照顧到 strict and additionalProperties. idea 來自本文：https://cookbook.openai.com/examples/structured_outputs_intro
         tools = [
             {
                 **function_to_json(f),
@@ -107,10 +110,18 @@ class Swarm:
         if response_format:
             # 檢查 openai 如果尚未修正 is_given() 就發出警告
             if openai._utils._utils.is_given(None) or openai._utils._utils.is_given([]):
-                assert False "OpenAI function is_given() in trouble that blocks response_format structured outputs from Swarm. See my workaround at https://www.notion.so/Activity-Log-14ae3eb16f9380928722d2a020aed0af?pvs=4#177e3eb16f9380ec9f99dd9764a60a7b"
+                assert False, "OpenAI function is_given() in trouble that blocks response_format structured outputs from Swarm. See my workaround at https://www.notion.so/Activity-Log-14ae3eb16f9380928722d2a020aed0af?pvs=4#177e3eb16f9380ec9f99dd9764a60a7b"
             create_params.pop("stream") # TypeError: Completions.parse() got an unexpected keyword argument 'stream' - HC 4:28 PM 1/10/2025
             completion = self.client.beta.chat.completions.parse(
                 **create_params, response_format=response_format
+            )
+        elif agent.response_format:
+            # 檢查 openai 如果尚未修正 is_given() 就發出警告
+            if openai._utils._utils.is_given(None) or openai._utils._utils.is_given([]):
+                assert False, "OpenAI function is_given() in trouble that blocks response_format structured outputs from Swarm. See my workaround at https://www.notion.so/Activity-Log-14ae3eb16f9380928722d2a020aed0af?pvs=4#177e3eb16f9380ec9f99dd9764a60a7b"
+            create_params.pop("stream")
+            completion = self.client.beta.chat.completions.parse(
+                **create_params, response_format=agent.response_format
             )
         else:
             completion = self.client.chat.completions.create(**create_params)
