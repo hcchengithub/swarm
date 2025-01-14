@@ -87,3 +87,5 @@ def run_demo_loop(
 
         messages.extend(response.messages)
         agent = response.agent
+    
+    return client
