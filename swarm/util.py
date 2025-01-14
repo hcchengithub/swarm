@@ -1,5 +1,43 @@
 import inspect
 from datetime import datetime
+from typing import List
+
+# HC 09:14 2025/01/14 
+def update_global_history(
+    global_history: List[dict] = None,
+    system_message: dict = None,
+    user_messages: List[dict] = None,
+    assistant_message: dict = None,
+    tool_responses: List[dict] = None,
+) -> List[dict]:
+    """
+    Updates the global conversation history and returns the updated history.
+
+    Parameters:
+        global_history (List[dict]): The global conversation history to update. If None, the function does nothing.
+        system_message (dict): A system message to add to history (optional).
+        user_messages (List[dict]): A list of user messages to add (optional).
+        assistant_message (dict): An assistant message to add (optional).
+        tool_responses (List[dict]): Tool responses to add (optional).
+
+    Returns:
+        List[dict]: The updated global history or None if no history is provided.
+    """
+
+    if global_history is None:
+        debug_print(True, "Warning: global_history is None. No updates were made.")
+        return None
+
+    if system_message:
+        global_history.append(system_message)
+    if user_messages:
+        global_history.extend(user_messages)
+    if assistant_message:
+        global_history.append(assistant_message)
+    if tool_responses:
+        global_history.extend(tool_responses)
+
+    return global_history
 
 
 def debug_print(debug: bool, *args: str) -> None:

@@ -9,7 +9,7 @@ from openai import OpenAI
 from pydantic import BaseModel # Add response_format - HC 2:52 PM 1/10/2025
 
 # Local imports
-from .util import function_to_json, debug_print, merge_chunk
+from .util import function_to_json, debug_print, merge_chunk, update_global_history
 from .types import (
     Agent,
     AgentFunction,
@@ -22,7 +22,6 @@ from .types import (
 
 __CTX_VARS_NAME__ = "context_variables"
 
-
 class Swarm:
     def __init__(self, client=None, extra_headers = None, get_access_token=None): # HC 16:03 2025/01/02
         if not client:
@@ -30,8 +29,8 @@ class Swarm:
         self.client = client
         self.get_access_token = get_access_token # columbus.get_access_token() method  # HC 16:03 2025/01/02
         self.extra_headers = extra_headers  # HC 16:03 2025/01/02
-        self.__version__ = "0.1.103"
-
+        self.global_history = [] # HC 10:34 2025/01/14 Keep all conversation messages for study and analysis
+        self.__version__ = "0.1.105"
 
         # Release Note
         # ============
@@ -42,7 +41,8 @@ class Swarm:
         #         1. add history to context_variables
         # 0.1.102 support Swarm structured outputs through response_format at client.run()
         # 0.1.103 support response_format at Agent definition
-        #
+        # 0.1.104 Obleleted try to add history to context_variables['history'] very complicated.
+        # 0.1.105 Use client.global_history to store conversation history.
 
     def get_chat_completion(
         self,
@@ -118,7 +118,7 @@ class Swarm:
         elif agent.response_format:
             # 檢查 openai 如果尚未修正 is_given() 就發出警告
             if openai._utils._utils.is_given(None) or openai._utils._utils.is_given([]):
-                assert False, "OpenAI function is_given() in trouble that blocks response_format structured outputs from Swarm. See my workaround at https://www.notion.so/Activity-Log-14ae3eb16f9380928722d2a020aed0af?pvs=4#177e3eb16f9380ec9f99dd9764a60a7b"
+                assert False, "OpenAI function is_given() in trouble that blocks response_format structured outputs from Swarm. See my workaround at https://share.evernote.com/note/a7988ae5-e952-e866-bcd6-379f4f6982ab"
             create_params.pop("stream")
             completion = self.client.beta.chat.completions.parse(
                 **create_params, response_format=agent.response_format
@@ -210,11 +210,10 @@ class Swarm:
         active_agent = agent
         context_variables = copy.deepcopy(context_variables)
 
-        # history = copy.deepcopy(messages)
-        # Ensure context_variables includes history so as to support get_history() function
-        if "history" not in context_variables:
-            context_variables["history"] = copy.deepcopy(messages)
-        history = context_variables["history"]
+        history = copy.deepcopy(messages)
+        # Initialize or pass the global history - HC 10:47 2025/01/14
+        update_global_history(self.global_history, system_message={"role": "system", "content": agent.instructions})
+        update_global_history(self.global_history, user_messages=messages)
 
         init_len = len(messages)
 
@@ -260,7 +259,9 @@ class Swarm:
             if not message["tool_calls"]:
                 message["tool_calls"] = None
             debug_print(debug, "Received completion:", message)
+
             history.append(message)
+            update_global_history(self.global_history, assistant_message=message) # HC 10:48 2025/01/14
 
             if not message["tool_calls"] or not execute_tools:
                 debug_print(debug, "Ending turn.")
@@ -282,7 +283,10 @@ class Swarm:
             partial_response = self.handle_tool_calls(
                 tool_calls, active_agent.functions, context_variables, debug
             )
+
             history.extend(partial_response.messages)
+            update_global_history(self.global_history, tool_responses=partial_response.messages) # HC 10:50 2025/01/14
+
             context_variables.update(partial_response.context_variables)
             if partial_response.agent:
                 active_agent = partial_response.agent
@@ -320,11 +324,10 @@ class Swarm:
         active_agent = agent
         context_variables = copy.deepcopy(context_variables)
 
-        # history = copy.deepcopy(messages)
-        # Ensure context_variables includes history so as to support get_history() function
-        if "history" not in context_variables:
-            context_variables["history"] = copy.deepcopy(messages)
-        history = context_variables["history"]
+        history = copy.deepcopy(messages)
+        # Initialize or pass the global history - HC 10:47 2025/01/14
+        update_global_history(self.global_history, system_message={"role": "system", "content": agent.instructions})
+        update_global_history(self.global_history, user_messages=messages)
 
         init_len = len(messages)
 
@@ -345,7 +348,8 @@ class Swarm:
             message.sender = active_agent.name
             history.append(
                 json.loads(message.model_dump_json())
-            )  # to avoid OpenAI types (?)
+            )  # to avoid OpenAI types (?) <-- HC 不是我寫的，要經過轉換否則是 ParsedChatCompletionMessage object
+            update_global_history(self.global_history, assistant_message=history[-1]) # HC 10:56 2025/01/14 這裡比較特別，要先把 obj 轉成 dict 借用現成的來用。
 
             if not message.tool_calls or not execute_tools:
                 debug_print(debug, "Ending turn.")
@@ -355,7 +359,10 @@ class Swarm:
             partial_response = self.handle_tool_calls(
                 message.tool_calls, active_agent.functions, context_variables, debug
             )
+
             history.extend(partial_response.messages)
+            update_global_history(self.global_history, tool_responses=partial_response.messages) # HC 10:57 2025/01/14
+
             context_variables.update(partial_response.context_variables)
             if partial_response.agent:
                 active_agent = partial_response.agent
