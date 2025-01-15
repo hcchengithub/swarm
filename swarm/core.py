@@ -30,11 +30,13 @@ class Swarm:
         self.get_access_token = get_access_token # columbus.get_access_token() method  # HC 16:03 2025/01/02
         self.extra_headers = extra_headers  # HC 16:03 2025/01/02
         self.global_history = [] # HC 10:34 2025/01/14 Keep all conversation messages for study and analysis
-        self.__version__ = "0.1.105"
+        self.__version__ = "0.1.106"
 
+    def release_note():
+        return """
         # Release Note
         # ============
-        # * Always use "pip uninstall swarm" and then "pip install . " to update new version.
+        # * Always use "pip uninstall swarm" and then "pip install . " to update new version. Note! 'swarm' on pypi is another project.
         #
         # 0.1.101 1. support Azure OpenAI and client.__version__
         #         1. REPL to accept 'q', 'quit', and 'exit'
@@ -43,6 +45,8 @@ class Swarm:
         # 0.1.103 support response_format at Agent definition
         # 0.1.104 Obleleted try to add history to context_variables['history'] very complicated.
         # 0.1.105 Use client.global_history to store conversation history.
+        # 0.1.106 run_demo_loop to accept client and model_override; new method release_note().
+        """
 
     def get_chat_completion(
         self,

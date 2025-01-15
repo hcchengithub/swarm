@@ -57,7 +57,7 @@ def pretty_print_messages(messages) -> None:
             print(f"\033[95m{name}\033[0m({arg_str[1:-1]})")
 
 
-def run_demo_loop(
+def original_run_demo_loop(
     starting_agent, context_variables=None, stream=False, debug=False
 ) -> None:
     client = Swarm()
@@ -89,3 +89,41 @@ def run_demo_loop(
         agent = response.agent
     
     return client
+
+# 增加 client, model_override 選項，允許從外面指定。 HC 16:10 2025/01/15
+def run_demo_loop(
+    starting_agent, context_variables=None, stream=False, debug=False, client=None, model_override=None
+) -> None:
+    # Initialize the Swarm client if not provided
+    client = client or Swarm()
+
+    print("Starting Swarm CLI 🐝")
+
+    messages = []
+    agent = starting_agent
+
+    while True:
+        user_input = input("\033[90mUser\033[0m: ")
+        if user_input.strip().lower() in ['q', 'quit', 'exit', 'bye']:
+            break
+        messages.append({"role": "user", "content": user_input})
+
+        response = client.run(
+            agent=agent,
+            messages=messages,
+            context_variables=context_variables or {},
+            stream=stream,
+            debug=debug,
+            model_override=model_override,  # Pass model_override directly
+        )
+
+        if stream:
+            response = process_and_print_streaming_response(response)
+        else:
+            pretty_print_messages(response.messages)
+
+        messages.extend(response.messages)
+        agent = response.agent
+
+    return client
+    
