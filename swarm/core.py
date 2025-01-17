@@ -30,9 +30,9 @@ class Swarm:
         self.get_access_token = get_access_token # columbus.get_access_token() method  # HC 16:03 2025/01/02
         self.extra_headers = extra_headers  # HC 16:03 2025/01/02
         self.global_history = [] # HC 10:34 2025/01/14 Keep all conversation messages for study and analysis
-        self.__version__ = "0.1.106"
+        self.__version__ = "0.1.107" # 要改三的地方 1.這裡; 2.下面的 release note; 3.Setup.cfg;
 
-    def release_note():
+    def release_note(self):
         return """
         # Release Note
         # ============
@@ -46,6 +46,10 @@ class Swarm:
         # 0.1.104 Obleleted try to add history to context_variables['history'] very complicated.
         # 0.1.105 Use client.global_history to store conversation history.
         # 0.1.106 run_demo_loop to accept client and model_override; new method release_note().
+        # 0.1.107 1. Remove run_and_stream(), I don't use it; 
+        #         2. fix bug of release_note(); 
+        #         3. The REPL `run_demo_loop()` returns the client, messages, and response. It also accepts 'messages' input.
+        #         4. refine the logic of 'if response_format or agent.response_format:'
         """
 
     def get_chat_completion(
@@ -111,23 +115,27 @@ class Swarm:
 
         # return self.client.chat.completions.create(**create_params)
         # Use the OpenAI client to parse if response_format is provided  - HC 3:33 PM 1/10/2025
-        if response_format:
-            # 檢查 openai 如果尚未修正 is_given() 就發出警告
+        if response_format or agent.response_format:
+            # Check for known issues with OpenAI's is_given() function
             if openai._utils._utils.is_given(None) or openai._utils._utils.is_given([]):
-                assert False, "OpenAI function is_given() in trouble that blocks response_format structured outputs from Swarm. See my workaround at https://www.notion.so/Activity-Log-14ae3eb16f9380928722d2a020aed0af?pvs=4#177e3eb16f9380ec9f99dd9764a60a7b"
-            create_params.pop("stream") # TypeError: Completions.parse() got an unexpected keyword argument 'stream' - HC 4:28 PM 1/10/2025
+                assert False, (
+                    "Detected issue with OpenAI's is_given() function. "
+                    "This may block response_format structured outputs from Swarm. "
+                    "Refer to the workaround: https://www.notion.so/Activity-Log-14ae3eb16f9380928722d2a020aed0af?pvs=4#177e3eb16f9380ec9f99dd9764a60a7b"
+                )
+            
+            # Remove 'stream' from create_params as parse() does not support it
+            create_params.pop("stream", None)
+
+            # Determine the response format to use
+            format_to_use = response_format or agent.response_format
+
+            # Parse the completion using the specified format
             completion = self.client.beta.chat.completions.parse(
-                **create_params, response_format=response_format
-            )
-        elif agent.response_format:
-            # 檢查 openai 如果尚未修正 is_given() 就發出警告
-            if openai._utils._utils.is_given(None) or openai._utils._utils.is_given([]):
-                assert False, "OpenAI function is_given() in trouble that blocks response_format structured outputs from Swarm. See my workaround at https://share.evernote.com/note/a7988ae5-e952-e866-bcd6-379f4f6982ab"
-            create_params.pop("stream")
-            completion = self.client.beta.chat.completions.parse(
-                **create_params, response_format=agent.response_format
+                **create_params, response_format=format_to_use
             )
         else:
+            # Default behavior if no response_format is specified
             completion = self.client.chat.completions.create(**create_params)
 
         return completion
@@ -150,6 +158,7 @@ class Swarm:
                     error_message = f"Failed to cast response to string: {result}. Make sure agent functions return a string or Result object. Error: {str(e)}"
                     debug_print(debug, error_message)
                     raise TypeError(error_message)
+
 
     def handle_tool_calls(
         self,
@@ -201,107 +210,6 @@ class Swarm:
 
         return partial_response
 
-    def run_and_stream(
-        self,
-        agent: Agent,
-        messages: List,
-        context_variables: dict = {},
-        model_override: str = None,
-        debug: bool = False,
-        max_turns: int = float("inf"),
-        execute_tools: bool = True,
-    ):
-        active_agent = agent
-        context_variables = copy.deepcopy(context_variables)
-
-        history = copy.deepcopy(messages)
-        # Initialize or pass the global history - HC 10:47 2025/01/14
-        update_global_history(self.global_history, system_message={"role": "system", "content": agent.instructions})
-        update_global_history(self.global_history, user_messages=messages)
-
-        init_len = len(messages)
-
-        while len(history) - init_len < max_turns:
-
-            message = {
-                "content": "",
-                "sender": agent.name,
-                "role": "assistant",
-                "function_call": None,
-                "tool_calls": defaultdict(
-                    lambda: {
-                        "function": {"arguments": "", "name": ""},
-                        "id": "",
-                        "type": "",
-                    }
-                ),
-            }
-
-            # get completion with current history, agent
-            completion = self.get_chat_completion(
-                agent=active_agent,
-                history=history,
-                context_variables=context_variables,
-                model_override=model_override,
-                stream=True,
-                debug=debug,
-            )
-
-            yield {"delim": "start"}
-            for chunk in completion:
-                delta = json.loads(chunk.choices[0].delta.json())
-                if delta["role"] == "assistant":
-                    delta["sender"] = active_agent.name
-                yield delta
-                delta.pop("role", None)
-                delta.pop("sender", None)
-                merge_chunk(message, delta)
-            yield {"delim": "end"}
-
-            message["tool_calls"] = list(
-                message.get("tool_calls", {}).values())
-            if not message["tool_calls"]:
-                message["tool_calls"] = None
-            debug_print(debug, "Received completion:", message)
-
-            history.append(message)
-            update_global_history(self.global_history, assistant_message=message) # HC 10:48 2025/01/14
-
-            if not message["tool_calls"] or not execute_tools:
-                debug_print(debug, "Ending turn.")
-                break
-
-            # convert tool_calls to objects
-            tool_calls = []
-            for tool_call in message["tool_calls"]:
-                function = Function(
-                    arguments=tool_call["function"]["arguments"],
-                    name=tool_call["function"]["name"],
-                )
-                tool_call_object = ChatCompletionMessageToolCall(
-                    id=tool_call["id"], function=function, type=tool_call["type"]
-                )
-                tool_calls.append(tool_call_object)
-
-            # handle function calls, updating context_variables, and switching agents
-            partial_response = self.handle_tool_calls(
-                tool_calls, active_agent.functions, context_variables, debug
-            )
-
-            history.extend(partial_response.messages)
-            update_global_history(self.global_history, tool_responses=partial_response.messages) # HC 10:50 2025/01/14
-
-            context_variables.update(partial_response.context_variables)
-            if partial_response.agent:
-                active_agent = partial_response.agent
-
-        yield {
-            "response": Response(
-                messages=history[init_len:],
-                agent=active_agent,
-                context_variables=context_variables,
-            )
-        }
 
     def run(
         self,
@@ -315,16 +223,6 @@ class Swarm:
         execute_tools: bool = True,
         response_format: BaseModel = None,  # Add response_format - HC 3:39 PM 1/10/2025
     ) -> Response:
-        if stream:
-            return self.run_and_stream(
-                agent=agent,
-                messages=messages,
-                context_variables=context_variables,
-                model_override=model_override,
-                debug=debug,
-                max_turns=max_turns,
-                execute_tools=execute_tools,
-            )
         active_agent = agent
         context_variables = copy.deepcopy(context_variables)
 

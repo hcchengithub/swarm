@@ -56,51 +56,23 @@ def pretty_print_messages(messages) -> None:
             arg_str = json.dumps(json.loads(args)).replace(":", "=")
             print(f"\033[95m{name}\033[0m({arg_str[1:-1]})")
 
-
-def original_run_demo_loop(
-    starting_agent, context_variables=None, stream=False, debug=False
-) -> None:
-    client = Swarm()
-    print("Starting Swarm CLI 🐝")
-
-    messages = []
-    agent = starting_agent
-
-    while True:
-        user_input = input("\033[90mUser\033[0m: ")
-        if user_input.strip().lower() in ['q','quit','exit','bye']: # HC 16:57 2025/01/03
-            break
-        messages.append({"role": "user", "content": user_input})
-
-        response = client.run(
-            agent=agent,
-            messages=messages,
-            context_variables=context_variables or {},
-            stream=stream,
-            debug=debug,
-        )
-
-        if stream:
-            response = process_and_print_streaming_response(response)
-        else:
-            pretty_print_messages(response.messages)
-
-        messages.extend(response.messages)
-        agent = response.agent
-    
-    return client
-
-# 增加 client, model_override 選項，允許從外面指定。 HC 16:10 2025/01/15
+# 增加 client, model_override, messages 選項，允許從外面指定。 HC 13:55 2025/01/17
 def run_demo_loop(
-    starting_agent, context_variables=None, stream=False, debug=False, client=None, model_override=None
+    starting_agent, 
+    context_variables=None, 
+    stream=False, 
+    debug=False, 
+    client=None, 
+    model_override=None,
+    messages=[], # HC 13:56 2025/01/17
 ) -> None:
     # Initialize the Swarm client if not provided
     client = client or Swarm()
 
     print("Starting Swarm CLI 🐝")
 
-    messages = []
     agent = starting_agent
+    response = None # to prevent UnboundLocalError - HC 11:21 2025/01/17
 
     while True:
         user_input = input("\033[90mUser\033[0m: ")
@@ -125,5 +97,5 @@ def run_demo_loop(
         messages.extend(response.messages)
         agent = response.agent
 
-    return client
+    return client, response, messages # So we can see them - HC 11:21 2025/01/17
     
