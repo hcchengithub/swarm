@@ -58,11 +58,11 @@ def pretty_print_messages(messages) -> None:
 
 # 增加 client, model_override, messages 選項，允許從外面指定。 HC 13:55 2025/01/17
 def run_demo_loop(
-    starting_agent, 
-    context_variables=None, 
-    stream=False, 
-    debug=False, 
-    client=None, 
+    starting_agent,
+    context_variables=None,
+    stream=False,
+    debug=False,
+    client=None,
     model_override=None,
     messages=[], # HC 13:56 2025/01/17
 ) -> None:
@@ -74,8 +74,12 @@ def run_demo_loop(
     agent = starting_agent
     response = None # to prevent UnboundLocalError - HC 11:21 2025/01/17
 
+    print(f"\033[94mAgent: {agent.name}\033[0m")
+
     while True:
-        user_input = input("\033[90mUser\033[0m: ")
+
+        print("\033[92mUser\033[0m: ", end="")
+        user_input = input()
         if user_input.strip().lower() in ['q', 'quit', 'exit', 'bye']:
             break
         messages.append({"role": "user", "content": user_input})
@@ -98,4 +102,3 @@ def run_demo_loop(
         agent = response.agent
 
     return client, response, messages # So we can see them - HC 11:21 2025/01/17
-    
