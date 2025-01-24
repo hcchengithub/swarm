@@ -30,7 +30,7 @@ class Swarm:
         self.get_access_token = get_access_token # columbus.get_access_token() method  # HC 16:03 2025/01/02
         self.extra_headers = extra_headers  # HC 16:03 2025/01/02
         self.global_history = [] # HC 10:34 2025/01/14 Keep all conversation messages for study and analysis
-        self.__version__ = "0.1.107" # 要改三的地方 1.這裡; 2.下面的 release note; 3.Setup.cfg;
+        self.__version__ = "0.1.108" # 要改三的地方 1.這裡; 2.下面的 release note; 3.Setup.cfg;
 
     def release_note(self):
         return """
@@ -50,6 +50,7 @@ class Swarm:
         #         2. fix bug of release_note(); 
         #         3. The REPL `run_demo_loop()` returns the client, messages, and response. It also accepts 'messages' input.
         #         4. refine the logic of 'if response_format or agent.response_format:'
+        # 0.1.108 Improve client.global_history by separate different runs.
         """
 
     def get_chat_completion(
@@ -228,8 +229,9 @@ class Swarm:
 
         history = copy.deepcopy(messages)
         # Initialize or pass the global history - HC 10:47 2025/01/14
-        update_global_history(self.global_history, system_message={"role": "system", "content": agent.instructions})
-        update_global_history(self.global_history, user_messages=messages)
+        run_id = len(self.global_history) + 1
+        update_global_history(self.global_history, run_id, system_message={"role": "system", "content": agent.instructions})
+        update_global_history(self.global_history, run_id, user_messages=messages)
 
         init_len = len(messages)
 
@@ -251,7 +253,7 @@ class Swarm:
             history.append(
                 json.loads(message.model_dump_json())
             )  # to avoid OpenAI types (?) <-- HC 不是我寫的，要經過轉換否則是 ParsedChatCompletionMessage object
-            update_global_history(self.global_history, assistant_message=history[-1]) # HC 10:56 2025/01/14 這裡比較特別，要先把 obj 轉成 dict 借用現成的來用。
+            update_global_history(self.global_history, run_id, assistant_message=history[-1]) # HC 10:56 2025/01/14 這裡比較特別，要先把 obj 轉成 dict 借用現成的來用。
 
             if not message.tool_calls or not execute_tools:
                 debug_print(debug, "Ending turn.")
@@ -263,7 +265,7 @@ class Swarm:
             )
 
             history.extend(partial_response.messages)
-            update_global_history(self.global_history, tool_responses=partial_response.messages) # HC 10:57 2025/01/14
+            update_global_history(self.global_history, run_id, tool_responses=partial_response.messages) # HC 10:57 2025/01/14
 
             context_variables.update(partial_response.context_variables)
             if partial_response.agent:

@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List
 
 # HC 09:14 2025/01/14 
-def update_global_history(
+def old_update_global_history(
     global_history: List[dict] = None,
     system_message: dict = None,
     user_messages: List[dict] = None,
@@ -39,6 +39,43 @@ def update_global_history(
 
     return global_history
 
+def update_global_history(
+    global_history: List[dict],
+    run_id: int,
+    system_message: dict = None,
+    user_messages: List[dict] = None,
+    assistant_message: dict = None,
+    tool_responses: List[dict] = None,
+):
+    """
+    Updates the global history by associating messages with a specific run_id.
+
+    Parameters:
+        global_history (List[dict]): Global conversation history with grouped runs.
+        run_id (int): Identifier for the current run.
+        system_message (dict): A system message to add (optional).
+        user_messages (List[dict]): User messages to add (optional).
+        assistant_message (dict): Assistant message to add (optional).
+        tool_responses (List[dict]): Tool responses to add (optional).
+
+    Returns:
+        None: Updates the global_history in place.
+    """
+    # Ensure a run entry exists for the given run_id
+    run_entry = next((run for run in global_history if run["run_id"] == run_id), None)
+    if not run_entry:
+        run_entry = {"run_id": run_id, "messages": []}
+        global_history.append(run_entry)
+
+    # Add messages to the current run's messages
+    if system_message:
+        run_entry["messages"].append(system_message)
+    if user_messages:
+        run_entry["messages"].extend(user_messages)
+    if assistant_message:
+        run_entry["messages"].append(assistant_message)
+    if tool_responses:
+        run_entry["messages"].extend(tool_responses)
 
 def debug_print(debug: bool, *args: str) -> None:
     if not debug:
