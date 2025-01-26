@@ -19,6 +19,7 @@ class Agent(BaseModel):
     tool_choice: str = None
     parallel_tool_calls: bool = True
     response_format: Type[BaseModel] = None # Add response_format - HC 10:25 AM 1/11/2025
+    temperature: float = None  # Add temperature  - HC 7:33 AM 1/27/2025
 
 class Response(BaseModel):
     messages: List = []

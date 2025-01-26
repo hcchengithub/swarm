@@ -23,6 +23,9 @@ from .types import (
 __CTX_VARS_NAME__ = "context_variables"
 
 class Swarm:
+
+    TEMPERATURE = 0.3  # HC 7:41 AM 1/27/2025
+
     def __init__(self, client=None, extra_headers = None, get_access_token=None): # HC 16:03 2025/01/02
         if not client:
             client = OpenAI()
@@ -46,8 +49,8 @@ class Swarm:
         # 0.1.104 Obleleted try to add history to context_variables['history'] very complicated.
         # 0.1.105 Use client.global_history to store conversation history.
         # 0.1.106 run_demo_loop to accept client and model_override; new method release_note().
-        # 0.1.107 1. Remove run_and_stream(), I don't use it; 
-        #         2. fix bug of release_note(); 
+        # 0.1.107 1. Remove run_and_stream(), I don't use it;
+        #         2. fix bug of release_note();
         #         3. The REPL `run_demo_loop()` returns the client, messages, and response. It also accepts 'messages' input.
         #         4. refine the logic of 'if response_format or agent.response_format:'
         # 0.1.108 Improve client.global_history by separate different runs.
@@ -62,6 +65,7 @@ class Swarm:
         stream: bool,
         debug: bool,
         response_format: BaseModel = None,  # Add response_format - HC 2:52 PM 1/10/2025
+        temperature: float = None,  # Per run temperature - HC 7:35 AM 1/27/2025
     ) -> ChatCompletionMessage:
         context_variables = defaultdict(str, context_variables)
         instructions = (
@@ -102,13 +106,23 @@ class Swarm:
         if self.get_access_token:
             self.extra_headers['Authorization'] = 'Bearer ' + self.get_access_token()
 
+        # Determine the temperature to use - HC 7:37 AM 1/27/2025
+        effective_temperature = (
+            temperature  # Per run temperature
+            if temperature is not None
+            else agent.temperature  # Per agent temperature
+            if agent.temperature is not None
+            else self.TEMPERATURE  # Global default
+        )
+
         create_params = {
             "model": model_override or agent.model,
             "messages": messages,
             "tools": tools or None,
             "tool_choice": agent.tool_choice,
             "stream": stream,
-            "extra_headers" : self.extra_headers  # HC 16:03 2025/01/02
+            "extra_headers" : self.extra_headers,  # HC 16:03 2025/01/02
+            "temperature": effective_temperature,  # Use the determined temperature
         }
 
         if tools:
@@ -124,7 +138,7 @@ class Swarm:
                     "This may block response_format structured outputs from Swarm. "
                     "Refer to the workaround: https://www.notion.so/Activity-Log-14ae3eb16f9380928722d2a020aed0af?pvs=4#177e3eb16f9380ec9f99dd9764a60a7b"
                 )
-            
+
             # Remove 'stream' from create_params as parse() does not support it
             create_params.pop("stream", None)
 
@@ -223,6 +237,7 @@ class Swarm:
         max_turns: int = float("inf"),
         execute_tools: bool = True,
         response_format: BaseModel = None,  # Add response_format - HC 3:39 PM 1/10/2025
+        temperature: float = None,          # Add temperature - HC 7:45 AM 1/27/2025
     ) -> Response:
         active_agent = agent
         context_variables = copy.deepcopy(context_variables)
@@ -246,6 +261,7 @@ class Swarm:
                 stream=stream,
                 debug=debug,
                 response_format=response_format,  # Pass response_format - HC 3:42 PM 1/10/2025
+                temperature=temperature,  # Pass per-run temperature - HC 7:46 AM 1/27/2025
             )
             message = completion.choices[0].message
             debug_print(debug, "Received completion:", message)
