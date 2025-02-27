@@ -33,7 +33,7 @@ class Swarm:
         self.get_access_token = get_access_token # columbus.get_access_token() method  # HC 16:03 2025/01/02
         self.extra_headers = extra_headers  # HC 16:03 2025/01/02
         self.global_history = [] # HC 10:34 2025/01/14 Keep all conversation messages for study and analysis
-        self.__version__ = "0.1.108" # 要改三的地方 1.這裡; 2.下面的 release note; 3.Setup.cfg;
+        self.__version__ = "0.1.109" # 要改三的地方 1.這裡; 2.下面的 release note; 3.Setup.cfg;
 
     def release_note(self):
         return """
@@ -54,6 +54,7 @@ class Swarm:
         #         3. The REPL `run_demo_loop()` returns the client, messages, and response. It also accepts 'messages' input.
         #         4. refine the logic of 'if response_format or agent.response_format:'
         # 0.1.108 Improve client.global_history by separate different runs.
+        # 0.1.109 completely fixed the is_given() issue https://github.com/openai/openai-python/issues/2138
         """
 
     def get_chat_completion(
@@ -118,7 +119,7 @@ class Swarm:
         create_params = {
             "model": model_override or agent.model,
             "messages": messages,
-            "tools": tools or None,
+            "tools": tools or openai.NotGiven(), # was None which is wrong and caused the is_given() issue https://github.com/openai/openai-python/issues/2138
             "tool_choice": agent.tool_choice,
             "stream": stream,
             "extra_headers" : self.extra_headers,  # HC 16:03 2025/01/02
@@ -131,14 +132,6 @@ class Swarm:
         # return self.client.chat.completions.create(**create_params)
         # Use the OpenAI client to parse if response_format is provided  - HC 3:33 PM 1/10/2025
         if response_format or agent.response_format:
-            # Check for known issues with OpenAI's is_given() function
-            if openai._utils._utils.is_given(None) or openai._utils._utils.is_given([]):
-                assert False, (
-                    "Detected issue with OpenAI's is_given() function. "
-                    "This may block response_format structured outputs from Swarm. "
-                    "Refer to the workaround: https://www.notion.so/Activity-Log-14ae3eb16f9380928722d2a020aed0af?pvs=4#177e3eb16f9380ec9f99dd9764a60a7b"
-                )
-
             # Remove 'stream' from create_params as parse() does not support it
             create_params.pop("stream", None)
 
