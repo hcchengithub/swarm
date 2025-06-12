@@ -34,7 +34,7 @@ class Swarm:
         self.get_access_token = get_access_token # columbus.get_access_token() method  # HC 16:03 2025/01/02
         self.extra_headers = extra_headers  # HC 16:03 2025/01/02
         self.global_history = [] # HC 10:34 2025/01/14 Keep all conversation messages for study and analysis
-        self.__version__ = "0.1.108" # 要改三的地方 1.這裡; 2.下面的 release note; 3.Setup.cfg;
+        self.__version__ = "0.1.109" # 要改三的地方 1.這裡; 2.下面的 release note; 3.Setup.cfg;
 
     def release_note(self):
         return """
@@ -55,6 +55,7 @@ class Swarm:
         #         3. The REPL `run_demo_loop()` returns the client, messages, and response. It also accepts 'messages' input.
         #         4. refine the logic of 'if response_format or agent.response_format:'
         # 0.1.108 Improve client.global_history by separate different runs.
+        # 0.1.109 add openapi_tools.py to support OpenAPI
         """
 
     def get_chat_completion(

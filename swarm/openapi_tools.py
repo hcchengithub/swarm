@@ -1,9 +1,9 @@
 # openapi_tools.py 
 
-# ±N OpenAPI ³W®æÂà¬° Swarm-compatible ¦P¨B¤u¨ã¨ç¦¡
-# ±z¥i¥H¦b¥ô¦ó¦a¤è³o¼Ë¨Ï¥Î¡G
+# å°‡ OpenAPI è¦æ ¼è½‰ç‚º Swarm-compatible åŒæ­¥å·¥å…·å‡½å¼
+# æ‚¨å¯ä»¥åœ¨ä»»ä½•åœ°æ–¹é€™æ¨£ä½¿ç”¨ï¼š
 # from swarm.openapi_tools import load_tools_from_openapi
-# ©ÎªÌ­Y±z¦b swarm/ ¸ê®Æ§¨¤º³¡¨Ï¥Î¡A¤]¥i¥H¡G
+# æˆ–è€…è‹¥æ‚¨åœ¨ swarm/ è³‡æ–™å¤¾å…§éƒ¨ä½¿ç”¨ï¼Œä¹Ÿå¯ä»¥ï¼š
 # from .openapi_tools import load_tools_from_openapi
 
 import json, re, textwrap, requests
@@ -121,7 +121,7 @@ def {name}({sig}) -> dict:
 
 
 def load_tools_from_openapi(openapi_spec: dict, base_url: str) -> list:
-    """®Ú¾Ú OpenAPI ³W®æ»P base_url¡Aª½±µ exec() ²£¥Í Swarm ¥i¥Î¨ç¦¡¦Cªí"""
+    """æ ¹æ“š OpenAPI è¦æ ¼èˆ‡ base_urlï¼Œç›´æ¥ exec() ç”¢ç”Ÿ Swarm å¯ç”¨å‡½å¼åˆ—è¡¨"""
     function_metas = openapi_to_swarm_functions(openapi_spec)
     tools = []
     for meta in function_metas:
