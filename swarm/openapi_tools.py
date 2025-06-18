@@ -11,9 +11,21 @@ from typing import Any
 
 __all__ = ["openapi_to_swarm_functions", "generate_swarm_function_code", "load_tools_from_openapi"]
 
+def enforce_no_additional(schema_obj: Any):
+    """遞迴遍歷 schema 物件，若 type=object 則加上 additionalProperties=False"""
+    if isinstance(schema_obj, dict):
+        if schema_obj.get("type") == "object":
+            schema_obj.setdefault("additionalProperties", False)
+        for v in schema_obj.values():
+            enforce_no_additional(v)
+    elif isinstance(schema_obj, list):
+        for item in schema_obj:
+            enforce_no_additional(item)
+
+
 def openapi_to_swarm_functions(openapi_spec):
     def resolve_ref(ref, components):
-        ref_path = ref.lstrip("#/" ).split("/")
+        ref_path = ref.lstrip("#/").split("/")
         schema = components
         for part in ref_path[1:]:
             schema = schema.get(part, {})
@@ -35,36 +47,39 @@ def openapi_to_swarm_functions(openapi_spec):
 
     for path, methods in openapi_spec.get("paths", {}).items():
         for method, details in methods.items():
-            op_id      = details.get("operationId", f"{method}_{path}").replace("/", "_").replace("{", "").replace("}", "")
-            summary    = details.get("summary", "")
-            parameters = details.get("parameters", [])
+            op_id       = details.get("operationId", f"{method}_{path}")
+            op_id       = op_id.replace("/", "_").replace("{", "").replace("}", "")
+            summary     = details.get("summary", "")
+            parameters  = details.get("parameters", [])
             request_body = details.get("requestBody", {})
 
             props, required = {}, []
-
+            # 處理 path/query 參數
             for p in parameters:
                 name, schema = p["name"], p.get("schema", {})
-                props[name] = {
+                prop = {
                     "type": _deduce_type(schema),
-                    **({"description": p["description"]} if "description" in p else {}),
-                    **({"example":     p["example"]}     if "example"     in p else {})
+                    **({"description": p.get("description")} if p.get("description") else {}),
+                    **({"example": p.get("example")}     if p.get("example")     else {})
                 }
+                props[name] = prop
                 if p.get("required"):
                     required.append(name)
 
+            # 處理 requestBody
             if "content" in request_body:
                 for content in request_body["content"].values():
                     schema = content.get("schema", {})
                     if "$ref" in schema:
                         schema = resolve_ref(schema["$ref"], components)
-
                     if schema.get("type") == "object" and schema.get("properties"):
                         for pn, pschema in schema["properties"].items():
-                            props[pn] = {
+                            subprop = {
                                 "type": _deduce_type(pschema),
-                                **({"description": pschema["description"]} if "description" in pschema else {}),
-                                **({"example":     pschema["example"]}     if "example"     in pschema else {})
+                                **({"description": pschema.get("description")} if pschema.get("description") else {}),
+                                **({"example": pschema.get("example")}     if pschema.get("example")     else {})
                             }
+                            props[pn] = subprop
                         required.extend(schema.get("required", []))
                     else:
                         props["body"] = {
@@ -74,13 +89,21 @@ def openapi_to_swarm_functions(openapi_spec):
                         if (ex := schema.get("default") or schema.get("example")) is not None:
                             props["body"]["example"] = ex
 
+            # 組裝 parameters schema
+            param_schema = {
+                "type": "object",
+                "properties": props,
+                "required": list(set(required)) if required else []
+            }
+            # 強制遞迴加上 additionalProperties=False
+            enforce_no_additional(param_schema)
+
             functions.append({
                 "name": op_id,
                 "description": summary,
                 "method": method,
                 "path": path,
-                "properties": props,
-                "required": list(set(required)) if required else []
+                "parameters": param_schema
             })
 
     return functions
@@ -91,8 +114,9 @@ def generate_swarm_function_code(fn_meta, base_url):
     desc       = fn_meta["description"]
     method     = fn_meta["method"]
     path       = fn_meta["path"]
-    props      = fn_meta["properties"]
-    required   = set(fn_meta["required"])
+    param_schema = fn_meta["parameters"]
+    props      = param_schema["properties"]
+    required   = set(param_schema.get("required", []))
 
     url        = f"{base_url}{path}"
     path_keys  = re.findall(r"{(.*?)}", path)
@@ -107,13 +131,20 @@ def generate_swarm_function_code(fn_meta, base_url):
     body_line = "json=body" if "body" in props else ""
     payload_line = f"params={{k: v for k, v in payload.items() if k not in {path_keys + ['body']} and v is not None}}"
 
+    args_list = []
+    if body_line:
+        args_list.append(body_line)
+    if payload_line:
+        args_list.append(payload_line)
+    joined_args = ", ".join(args_list)
+
     fn_code = f'''
 def {name}({sig}) -> dict:
     """{desc}"""
     payload = locals().copy()
     import requests
     {body_line and "# Body payload"}
-    resp = requests.{method}(f"{url}", {body_line}, {payload_line})
+    resp = requests.{method}(f"{url}"{', ' + joined_args if joined_args else ''})
     resp.raise_for_status()
     return resp.json()
 '''
